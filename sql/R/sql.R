@@ -254,19 +254,19 @@ get_mse <- function (x, G, P){
 
 get_mse_1 <- function( Sigma, M, Pmat, p){
   # Pmat should be a matrix
-  PM <- Pmat %*% t(M)
+  PM <- as.matrix( Pmat %*% t(M) )
   G2 <- t(PM) %*% Sigma %*% PM
-  out <- Sigma + G2 - 2 * Pmat %*% t(PM) %*% Sigma
+  out <- Sigma + G2 - 2 * as.matrix( Pmat ) %*% t(PM) %*% Sigma
   return( mean(diag(out) )/ p )
 }
 
 hungarian_update <- function( Sigma, M, Pmat ){
-  PM <- Pmat %*% t(M)
+  PM <- as.matrix(Pmat %*% t(M))
   G2 <- t(PM) %*% Sigma %*% PM
   cost <- - 2 * Sigma %*% PM
-  cost <- as.matrix( t( t( cost + diag(Sigma) ) + diag(G2) ) )
+  cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
   ord <- clue::solve_LSAP( cost )
-  return( t(get_permutationMatrix( ord ) ) )
+  return( Matrix::t(get_permutationMatrix( ord ) ) )
 }
 
 pred_G <- function (x, P, d, lambda ){
