@@ -42,7 +42,7 @@
 #' sql
 #' abs( cor(sim$factor_z, sql$factor) )
 SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, max_cycles = 20, use_Rfast = FALSE, 
-                 pretrain_tol = 1e-4, Sigma = NULL ){
+                 pretrain_tol = 5e-4, Sigma = NULL ){
   # Check args:
   is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
   stopifnot("data should be a matrix" = is.matrix(data) & ncol(data) > 1 & nrow(data) > 1)
@@ -232,6 +232,7 @@ backfitting <- function(x, P, d, par){
       if(convergence) break
     }
   }
+  if(!convergence) if(print) print('Maximum number of cycles reached without convergence')
   return( list(P = P, mse = unlist( mse ), convergence = convergence ) )
 }
 
@@ -284,7 +285,7 @@ crossprod2 <- function(x, use_Rfast ){
 get_mse <- function (x, G, P){
   # P is a list of matrices
   q <- length(P)
-  xpred <- Reduce("+", lapply(1:q, function(l) P[[l]] %*% G[[l]]) )
+  xpred <- as.matrix( Reduce("+", lapply(1:q, function(l) P[[l]] %*% G[[l]]) ) )
   mean( ( x - xpred )^2 )
 }
 
