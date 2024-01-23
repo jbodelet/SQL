@@ -2,7 +2,7 @@
 % Please edit documentation in R/sql.R
 \name{simulate_afm}
 \alias{simulate_afm}
-\title{Simulate example data for Additive Factor Model}
+\title{Simulate example data for SQL}
 \usage{
 simulate_afm(n, p, q = 1, sde = 1, factor = NULL, generator = NULL)
 }
@@ -18,12 +18,30 @@ simulate_afm(n, p, q = 1, sde = 1, factor = NULL, generator = NULL)
 \item{factor}{a n by q matrix of latent factors.
 If not specified, the factors are generated as independent normally distributed variables.}
 
-\item{generator}{a list of length q functions.
-Each function takes as input a vector of length m and produce a m by p matrix.
+\item{generator}{a list of q functions.
+Each function should take as input a vector of length m and produce a m by p matrix.
 If not specified, the factors are generated as using random trigonometric functions.}
 }
+\value{
+A list with elements:
+\itemize{
+\item \code{data} the data matrix.
+\item \code{factor} a n times q matrix  containing the latent factors.
+\item \code{generator} a list of q functions.
+Each function takes as input a vector of length m and produce a m by p matrix.
+\item \code{SNR} Signal to noise ratio.
+}
+}
 \description{
-Function used to simulated data sets to illustrate the use of SQL.
+Simulate an additve factor model to illustrate the use of SQL.
 The generating function are simulated randomly using trigonometric basis functions.
 The factor are simulated as independent normally distributed variables (unless specified otherwise).
+}
+\examples{
+set.seed(123456)
+sim <- simulate_afm(n = 150, p = 200, q = 1)
+sql <- SQL(sim$data )
+sql
+plot(sql)
+abs( cor(sim$factor, sql$factor) )
 }

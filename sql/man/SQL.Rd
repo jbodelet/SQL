@@ -11,7 +11,7 @@ SQL(
   lambda = 0.1,
   tol = 1e-04,
   max_iter = 30,
-  max_cycles = 10,
+  max_cycles = 20,
   use_Rfast = FALSE,
   pretrain_tol = 1e-04,
   Sigma = NULL
@@ -39,17 +39,16 @@ SQL(
 \item{Sigma}{Cross-product of the centered data.}
 }
 \value{
-An object with S3 class sql.
+A list with class \code{sql}.
 \itemize{
-\item factor a n times q matrix  containing the estimated latent factors.
-\item data the data matrix.
-\item qap a list containing the solution of the Quadratic Assignment Problem, the mean squared error for each iteration, and the convergence status.
-\item splines an object to produce the basis functions.
-\item lambda the tuning parameter.
-\item d dimension of the basis functions.
-\item q number of latent factors.
-\item intercepts parameter vector of intercepts of length p.
-\item EV Explained variance.
+\item \code{factor} a n times q matrix  containing the estimated latent factors.
+\item \code{data} the data matrix.
+\item \code{opt} a list containing the solution of the Quadratic Assignment Problem, the mean squared error for each iteration, and the convergence status.
+\item \code{lambda} the tuning parameter.
+\item \code{d} dimension of the basis functions.
+\item \code{q} number of latent factors.
+\item \code{intercepts} parameter vector of intercepts of length p.
+\item \code{EV} Explained variance.
 }
 }
 \description{
@@ -58,9 +57,17 @@ The implementation makes use of penalyzed B-splines basis functions.
 }
 \examples{
 set.seed(123456)
-sim <- simulate_afm(n = 150, p = 200, q = 1, sde = 1)
-sql <- SQL(sim$data, d = 4 )
+sim <- simulate_afm(n = 150, p = 200)
+sql <- SQL(sim$data )
 sql
 plot(sql)
+abs( cor(sim$factor, sql$factor) )
+#==============
+# q= 3 factor:
+#==============
+q <- 3
+sim <- simulate_afm(n = 150, p = 200, q = q)
+sql <- SQL(sim$data, q = q)
+sql
 abs( cor(sim$factor_z, sql$factor) )
 }
