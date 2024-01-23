@@ -232,7 +232,7 @@ backfitting <- function(x, P, d, par){
       if(convergence) break
     }
   }
-  if(!convergence) if(print) print('Maximum number of cycles reached without convergence')
+  if(!convergence) print('Maximum number of cycles reached without convergence')
   return( list(P = P, mse = unlist( mse ), convergence = convergence ) )
 }
 

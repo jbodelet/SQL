@@ -9,7 +9,7 @@ library(sql)
 
 sim <- simulate_afm(n = 150, p = 200)
 
-sql <- SQL(sim$data, d = 4)
+sql <- SQL(sim$data)
 sql
 abs( cor(sim$factor, sql$factor) )
 plot(sql)
@@ -20,12 +20,11 @@ plot(sql)
 #==============
 
 q <- 3
-sim <- simulate_afm(n = 150, p = 200, q = q)
+sim <- simulate_afm(n = 150, p = 300, q = q)
 
 sql <- SQL(sim$data, q = q)
 sql
 abs( cor(sim$factor, sql$factor) )
-
 
 
 

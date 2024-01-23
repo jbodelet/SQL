@@ -13,7 +13,7 @@ SQL(
   max_iter = 30,
   max_cycles = 20,
   use_Rfast = FALSE,
-  pretrain_tol = 1e-04,
+  pretrain_tol = 5e-04,
   Sigma = NULL
 )
 }
