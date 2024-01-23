@@ -6,12 +6,25 @@ library(sql)
 # q= 1 factor:
 #==============
   
-set.seed(123456)
-sim <- sql:::simulate_afm(n = 150, p = 200, q = 1, sde = 1)
+
+sim <- simulate_afm(n = 150, p = 200)
 
 sql <- SQL(sim$data, d = 4)
 sql
 abs( cor(sim$factor_z, sql$factor) )
 plot(sql)
+
+
+#==============
+# q= 3 factor:
+#==============
+
+q <- 3
+sim <- simulate_afm(n = 150, p = 200, q = q)
+
+sql <- SQL(sim$data, q = q)
+sql
+abs( cor(sim$factor_z, sql$factor) )
+
 
 

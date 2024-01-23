@@ -14,27 +14,36 @@
 #' @param pretrain_tol Tolerance for pretraining.
 #' @param Sigma Cross-product of the centered data.
 #' @returns 
-#' An object with S3 class sql.
-#' * factor a n times q matrix  containing the estimated latent factors.
-#' * data the data matrix.
-#' * qap a list containing the solution of the Quadratic Assignment Problem, the mean squared error for each iteration, and the convergence status.
-#' * splines an object to produce the basis functions.
-#' * lambda the tuning parameter.
-#' * d dimension of the basis functions.
-#' * q number of latent factors.
-#' * intercepts parameter vector of intercepts of length p.
-#' * EV Explained variance.
+#' A list with class \code{sql}.
+#' \itemize{
+#' \item \code{factor} a n times q matrix  containing the estimated latent factors.
+#' \item \code{data} the data matrix.
+#' \item \code{opt} a list containing the solution of the Quadratic Assignment Problem, the mean squared error for each iteration, and the convergence status.
+#' \item \code{lambda} the tuning parameter.
+#' \item \code{d} dimension of the basis functions.
+#' \item \code{q} number of latent factors.
+#' \item \code{intercepts} parameter vector of intercepts of length p.
+#' \item \code{EV} Explained variance.
+#' }
 #' @export 
 #' @examples
 #' set.seed(123456)
-#' sim <- simulate_afm(n = 150, p = 200, q = 1, sde = 1)
-#' sql <- SQL(sim$data, d = 4 )
+#' sim <- simulate_afm(n = 150, p = 200)
+#' sql <- SQL(sim$data )
 #' sql
 #' plot(sql)
+#' abs( cor(sim$factor, sql$factor) )
+#' #==============
+#' # q= 3 factor:
+#' #==============
+#' q <- 3
+#' sim <- simulate_afm(n = 150, p = 200, q = q)
+#' sql <- SQL(sim$data, q = q)
+#' sql
 #' abs( cor(sim$factor_z, sql$factor) )
-SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, max_cycles = 10, use_Rfast = FALSE, 
+SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, max_cycles = 20, use_Rfast = FALSE, 
                  pretrain_tol = 1e-4, Sigma = NULL ){
-  # check args:
+  # Check args:
   is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
   stopifnot("data should be a matrix" = is.matrix(data) & ncol(data) > 1 & nrow(data) > 1)
   stopifnot("q should be a positive integer" = is_positive_integer(q) )
@@ -52,7 +61,7 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   }
   if( ncol(data) < 4 ) warning("number of columns might be too small")
   if( ncol(data) < q * d ) warning("for identifiability q times d shoul be less than number of columns.")
-  # parameter list:
+  # Parameter list:
   par <- list( n= nrow(data), p = ncol(data), lambda = lambda, tol = tol, max_iter = max_iter, 
                max_cycles = max_cycles, use_Rfast = use_Rfast, pretrain_tol = pretrain_tol,
                print = TRUE)
@@ -80,9 +89,9 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
 }
 
 
-#' Simulate example data for Additive Factor Model
+#' Simulate example data for SQL
 #'
-#' Function used to simulated data sets to illustrate the use of SQL.
+#' Simulate an additve factor model to illustrate the use of SQL.
 #' The generating function are simulated randomly using trigonometric basis functions.
 #' The factor are simulated as independent normally distributed variables (unless specified otherwise).
 #' 
@@ -92,18 +101,44 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
 #' @param sde standard deviation of the errors.
 #' @param factor a n by q matrix of latent factors. 
 #' If not specified, the factors are generated as independent normally distributed variables.
-#' @param generator a list of length q functions. 
-#' Each function takes as input a vector of length m and produce a m by p matrix.
+#' @param generator a list of q functions. 
+#' Each function should take as input a vector of length m and produce a m by p matrix.
 #' If not specified, the factors are generated as using random trigonometric functions.
-#' @export
+#' @returns 
+#' A list with elements:
+#' \itemize{
+#' \item \code{data} the data matrix.
+#' \item \code{factor} a n times q matrix  containing the latent factors.
+#' \item \code{generator} a list of q functions. 
+#' Each function takes as input a vector of length m and produce a m by p matrix.
+#' \item \code{SNR} Signal to noise ratio.
+#' }
+#' @export 
+#' @examples
+#' set.seed(123456)
+#' sim <- simulate_afm(n = 150, p = 200, q = 1)
+#' sql <- SQL(sim$data )
+#' sql
+#' plot(sql)
+#' abs( cor(sim$factor, sql$factor) )
 simulate_afm <- function(n, p, q = 1, sde = 1, factor = NULL, generator = NULL ){
-  # generate factors, perfectly independent with mean 0 and not correlated
+  is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
+  stopifnot("n should be a positive integer" = is_positive_integer(n) )
+  stopifnot("p should be a positive integer" = is_positive_integer(p) )
+  stopifnot("q should be a positive integer" = is_positive_integer(q) )
+  stopifnot("sde should be positive number" = sde > 0 )
+  if(!is.null(factor)){
+    stopifnot("factor should be a matrix with q columns" = is.matrix(factor) & ncol(factor) == q )
+    stopifnot("factor should have n rows" = nrow(data) == n )
+  }
+  if(!is.null(generator)){
+    stopifnot("generator should be a list of length q" = is.list(generator) & length(generator) == q )
+  }
   if(is.null(factor)){
     factor <- matrix( rnorm(n*q ), ncol = q )
     factor <- apply(factor, 2, scale)
     factor <- factor %*% solve( expm::sqrtm( var(factor) ) )    
   }
-  # functions:
   if(is.null(generator)){
     generator <- replicate( q,{
       f <- replicate( p , gen_func(rnorm(8)), simplify = FALSE ) 
@@ -112,12 +147,11 @@ simulate_afm <- function(n, p, q = 1, sde = 1, factor = NULL, generator = NULL )
       }
     }, simplify = FALSE )
   }
-  # model:
   eps <- matrix( rnorm( n * p, sd = sde ), ncol = p )
   x_expected <- Reduce( '+', lapply( 1:q, function(l) generator[[l]](factor[,l]) ) )
   x <- x_expected + eps
   SNR <- mean( apply( x_expected, 2, var ) / sde^2 )
-  return( list( data = x, factor_z = factor, generator = generator, SNR = SNR ) )
+  return( list( data = x, factor = factor, generator = generator, SNR = SNR ) )
 }
 
 
@@ -133,6 +167,8 @@ simulate_afm <- function(n, p, q = 1, sde = 1, factor = NULL, generator = NULL )
 #' z <- seq(-3, 3, l = 100)
 #' plot(g(z) ~ z, type = "l")
 gen_func <- function(theta){
+  is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
+  stopifnot("theta should be a vector of even length" = is_positive_integer(length(theta) / 2) )
   theta <- theta / mean( theta^2 )
   m <- length(theta) / 2
   ind <- 1:m
