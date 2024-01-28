@@ -4,7 +4,7 @@
 \alias{print.sql}
 \title{Print a Statistical Quantile Learning}
 \usage{
-\method{print}{sql}(object)
+print.sql(object)
 }
 \arguments{
 \item{object}{a fitted sql object produced by SQL().}

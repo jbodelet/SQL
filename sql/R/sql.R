@@ -25,7 +25,10 @@
 #' \item \code{intercepts} parameter vector of intercepts of length p.
 #' \item \code{EV} Explained variance.
 #' }
+#' @import Rfast
 #' @export 
+#' @import matrixcalc
+#' @import Matrix
 #' @examples
 #' set.seed(123456)
 #' sim <- simulate_afm(n = 150, p = 200)
