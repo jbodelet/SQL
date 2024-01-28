@@ -1,3 +1,5 @@
+# Statistical Quantile Learning (SQL)
+
 This is a resource page for the Statistical Quantile Learning (SQL)
 method described in [Statistical Quantile Learning for Large, Nonlinear,
 and Additive Latent Variable Models](https://arxiv.org/abs/2003.13119).
@@ -24,14 +26,14 @@ details are available in [Statistical Quantile Learning for Large,
 Nonlinear, and Additive Latent Variable
 Models](https://arxiv.org/abs/2003.13119).
 
-# Installation
+## Installation
 
 You can install the development version of SQL from
 [GitHub](https://github.com/) with:
 
     devtools::install_github("jbodelet/SQL/sql")
 
-# Usage
+## Usage
 
 Fit additive factor models
 
@@ -52,16 +54,16 @@ Fit additive factor models
     sql
     abs( cor(sim$factor, sql$factor) )
 
-# Dependencies
+## Dependencies
 
 The sql package depends on R libraries Matrix, matrixcalc, and Rfast.
 
-# Repository author
+## Repository author
 
 Julien Bodelet – post-doctoral researcher in Statistical learning, CHUV,
 Lausanne, Switzerland
 
-# Reference
+## Reference
 
 [Statistical Quantile Learning for Large, Nonlinear, and Additive Latent
 Variable Models](https://arxiv.org/abs/2003.13119)
