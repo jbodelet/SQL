@@ -20,7 +20,9 @@ package. New features and improvements will be available soon.
 ## Background
 
 SQL estimates the additive model,
-$$ X\_{j}= \sum\_{l=1}^q g\_{j,l}(Z\_{l}) + \epsilon\_{j}$$
+
+     X_{j}= \sum_{l=1}^q g_{j,l}(Z_{l}) + \epsilon_{j}
+
 where *Z*<sub>*l*</sub> are normally distributed latent factors. More
 details are available in [Statistical Quantile Learning for Large,
 Nonlinear, and Additive Latent Variable
