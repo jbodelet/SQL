@@ -1,8 +1,8 @@
 ---
 title: "SQL"
-author: "Julien Bodelet"
-date: "2024-01-28"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 bibliography: references.bib
 nocite: |
   @sql
