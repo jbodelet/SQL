@@ -15,6 +15,7 @@ abs( cor(sim$factor, sql$factor) )
 plot(sql)
 
 
+
 #==============
 # q= 3 factor:
 #==============
