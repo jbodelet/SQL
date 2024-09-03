@@ -92,101 +92,12 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
 }
 
 
-#' Simulate example data for SQL
-#'
-#' Simulate an additve factor model to illustrate the use of SQL.
-#' The generating function are simulated randomly using trigonometric basis functions.
-#' The factor are simulated as independent normally distributed variables (unless specified otherwise).
-#' 
-#' @param n sample size.
-#' @param p number of variables.
-#' @param q number of factors.
-#' @param sde standard deviation of the errors.
-#' @param factor a n by q matrix of latent factors. 
-#' If not specified, the factors are generated as independent normally distributed variables.
-#' @param generator a list of q functions. 
-#' Each function should take as input a vector of length m and produce a m by p matrix.
-#' If not specified, the factors are generated as using random trigonometric functions.
-#' @returns 
-#' A list with elements:
-#' \itemize{
-#' \item \code{data} the data matrix.
-#' \item \code{factor} a n times q matrix  containing the latent factors.
-#' \item \code{generator} a list of q functions. 
-#' Each function takes as input a vector of length m and produce a m by p matrix.
-#' \item \code{SNR} Signal to noise ratio.
-#' }
-#' @export 
-#' @examples
-#' set.seed(123456)
-#' sim <- simulate_afm(n = 150, p = 200, q = 1)
-#' sql <- SQL(sim$data )
-#' sql
-#' plot(sql)
-#' abs( cor(sim$factor, sql$factor) )
-simulate_afm <- function(n, p, q = 1, sde = 1, factor = NULL, generator = NULL ){
-  is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
-  stopifnot("n should be a positive integer" = is_positive_integer(n) )
-  stopifnot("p should be a positive integer" = is_positive_integer(p) )
-  stopifnot("q should be a positive integer" = is_positive_integer(q) )
-  stopifnot("sde should be positive number" = sde > 0 )
-  if(!is.null(factor)){
-    stopifnot("factor should be a matrix with q columns" = is.matrix(factor) & ncol(factor) == q )
-    stopifnot("factor should have n rows" = nrow(data) == n )
-  }
-  if(!is.null(generator)){
-    stopifnot("generator should be a list of length q" = is.list(generator) & length(generator) == q )
-  }
-  if(is.null(factor)){
-    factor <- matrix( rnorm(n*q ), ncol = q )
-    factor <- apply(factor, 2, scale)
-    factor <- factor %*% solve( expm::sqrtm( var(factor) ) )    
-  }
-  if(is.null(generator)){
-    generator <- replicate( q,{
-      f <- replicate( p , gen_func(rnorm(8)), simplify = FALSE ) 
-      function(z){
-        matrix( sapply( f, function(g) g(z) ), ncol = p )
-      }
-    }, simplify = FALSE )
-  }
-  eps <- matrix( rnorm( n * p, sd = sde ), ncol = p )
-  x_expected <- Reduce( '+', lapply( 1:q, function(l) generator[[l]](factor[,l]) ) )
-  x <- x_expected + eps
-  SNR <- mean( apply( x_expected, 2, var ) / sde^2 )
-  return( list( data = x, factor = factor, generator = generator, SNR = SNR ) )
-}
 
-
-#' Simulate example data for Additive Factor Model
-#'
-#' Generate a function from linear combinations of trigonometric functions.
-#' The functions are centered, i.e. E(g(Z)) = 0, if Z is normally distributed.
-#' 
-#' @param theta vector of coefficients for the basis functions. Length of the vector should be even.
-#' @export
-#' @examples 
-#' g <- gen_func(rnorm(8))
-#' z <- seq(-3, 3, l = 100)
-#' plot(g(z) ~ z, type = "l")
-gen_func <- function(theta){
-  is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
-  stopifnot("theta should be a vector of even length" = is_positive_integer(length(theta) / 2) )
-  theta <- theta / mean( theta^2 )
-  m <- length(theta) / 2
-  ind <- 1:m
-  a <- theta[ind] / ind 
-  b <- theta[ m + ind] / ind 
-  f <- Vectorize( function(z){ sum( a * cos( 2 * pi * ind * z / 8 ) + b * sin( 2 * pi * ind * z / 8 ) ) / 2  } )
-  grid <- qnorm(1:200/201)
-  mean_f <- mean( f(grid) )
-  return( function(z) f(z) - mean_f )
-}
 
 
 
 #===================
-# High level q = 1:
+# High level:
 #===================
 
 SQL_solve <- function(x, P, d, Sigma, par){
@@ -309,24 +220,35 @@ hungarian_update <- function( Sigma, M, Pmat ){
   return( Matrix::t(get_permutationMatrix( ord ) ) )
 }
 
-pred_G <- function (x, P, d, lambda ){
+get_Beta <- function(x, P, lambda, d){
   q <- length(P)
   grid <- 1:nrow(x) / (nrow(x)+1)
-  splines <- get_splines( d = d + 1 )
-  basis <- get_basis(splines, grid, center = TRUE )
-  psi <- basis$psi
+  basis <- get_basis( get_splines(d+1), grid, center = TRUE )
   Omega_tot <- as.matrix( do.call(Matrix::bdiag, replicate(q, basis$Omega, simplify = F ) ) )
-  psimat <- as.matrix( do.call(cbind, lapply(P, function(A) A %*% psi)) )
+  psimat <- as.matrix( do.call(cbind, lapply(P, function(A) A %*% basis$psi ) ) )
   Gram_matrix <- t(psimat) %*% psimat + lambda * Omega_tot
   is_singular <- matrixcalc::is.singular.matrix(as.matrix(Gram_matrix))
   if(is_singular){
     print("Matrix is singular!!")
     Gram_matrix <- Gram_matrix + (lambda/2) * diag(q*d)
   }
-  B <- solve(Gram_matrix, t(psimat)) %*% x
-  G <- lapply(1:q, function(l) psi %*% B[(l - 1) * d + 1:d, ])
+  return( solve(Gram_matrix, t(psimat)) %*% x )
+}
+
+
+pred_G <- function (x, P, d, lambda ){
+  # uniform scale
+  q <- length(P)
+  grid <- 1:nrow(x) / (nrow(x)+1)
+  basis <- get_basis(get_splines(d+1), grid, center = TRUE )
+  B <- get_Beta(x, P, lambda, d)
+  G <- lapply(1:q, function(l) basis$psi %*% B[(l - 1) * d + 1:d, ])
   return(G)
 }
+
+
+
+
 
 
 get_projection_matrix <- function( psi, Omega, lambda ){
@@ -411,3 +333,32 @@ plot.sql <- function(object, ...){
 }
 
 
+
+#' Predictions for Statistical Quantile Learning
+#'
+#' Obtain predictions from a fitted sql object produced by SQL().
+#' 
+#' @param object  a fitted sql object produced by SQL().
+#' @param new_data a matrix, with q columns, containing the values (of the latent variables) at which predictions are required.
+#' @param type type of predictions, with choices "terms" or "response".
+#' @param scaling A probability distribution function corresponding to the distribution of new_data.
+#' @export
+predict.sql <- function( object, new_data, type = c("terms", "response"), scaling = pnorm ){
+  stopifnot("new_data should be a matrix with q columns" = is.matrix(new_data) & ncol(new_data) == object$q )
+  type <- match.arg(type)
+  # For now it is only available for the Gaussian scale
+  d <- object$d
+  new_grid <- apply(new_data, 2, scaling )
+  splines <- sql:::get_splines(d+1)
+  B <- sql:::get_Beta(object$data, object$opt$P, object$lambda, d)
+  predicted_terms <- lapply(1:object$q, function(l){
+    basis <- sql:::get_basis(splines, new_grid[,l], center = TRUE )
+    return( basis$psi %*% B[(l - 1) * d + 1:d, ] )
+  })
+  if (type == "terms") {
+    return(predicted_terms)    
+  } else if (type == "response") {
+    out <- Reduce('+', predicted_terms)
+    return(out)
+  }
+}
