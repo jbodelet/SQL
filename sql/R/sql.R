@@ -221,8 +221,17 @@ hungarian_update <- function( Sigma, M, Pmat ){
   G2 <- t(PM) %*% Sigma %*% PM
   cost <- - 2 * Sigma %*% PM
   cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
-  ord <- clue::solve_LSAP( cost )
+  ord <- solve_LSAP2(cost)
   return( Matrix::t(get_permutationMatrix( ord ) ) )
+}
+
+solve_LSAP2 <- function(cost, greedy = FALSE){
+  if(greedy){
+    ord <- solve_LSAP_greedy(cost)
+  }else{
+    ord <- clue::solve_LSAP( cost )
+  }
+  return(ord)
 }
 
 get_Beta <- function(x, P, lambda, d){
@@ -293,7 +302,9 @@ get_basis <- function(splines, grid, center = TRUE ){
 
 
 
-
+solve_LSAP_greedy <- function(cost){
+  rank( apply( cost, 1, which.min ), ties.method = "random" )
+}
 
 
 
