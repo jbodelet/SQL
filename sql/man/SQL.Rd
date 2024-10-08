@@ -14,7 +14,8 @@ SQL(
   max_cycles = 20,
   use_Rfast = FALSE,
   pretrain_tol = 5e-04,
-  Sigma = NULL
+  Sigma = NULL,
+  greedy = FALSE
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ SQL(
 \item{pretrain_tol}{Tolerance for pretraining.}
 
 \item{Sigma}{Cross-product of the centered data.}
+
+\item{greedy}{If TRUE, use a greedy algorithm instead of the Hungarian algorithm. This option leads to large speed gains if the number of observations is large.}
 }
 \value{
 A list with class \code{sql}.

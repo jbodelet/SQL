@@ -13,6 +13,7 @@
 #' @param use_Rfast If TRUE, use package Rfast to compute the cross-product of the data matrix. This option may lead to speed gains if the number of variables is large. To use it, make sure that Rfast is installed.
 #' @param pretrain_tol Tolerance for pretraining.
 #' @param Sigma Cross-product of the centered data.
+#' @param greedy If TRUE, use a greedy algorithm instead of the Hungarian algorithm. This option leads to large speed gains if the number of observations is large.
 #' @returns 
 #' A list with class \code{sql}.
 #' \itemize{
@@ -44,7 +45,7 @@
 #' sql
 #' abs( cor(sim$factor_z, sql$factor) )
 SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, max_cycles = 20, use_Rfast = FALSE, 
-                 pretrain_tol = 5e-4, Sigma = NULL ){
+                 pretrain_tol = 5e-4, Sigma = NULL, greedy = FALSE){
   # Check args:
   is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
   stopifnot("data should be a matrix" = is.matrix(data) & ncol(data) > 1 & nrow(data) > 1)
@@ -56,6 +57,7 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   stopifnot(is_positive_integer(max_cycles))
   stopifnot(is.logical( use_Rfast ) )
   stopifnot(pretrain_tol>=0)
+  stopifnot(is.logical(greedy))
   if(use_Rfast){
     if (!requireNamespace("Rfast", quietly = TRUE)) {
       warning("The Rfast package must be installed. Ignoring use_Rfast argument.")
@@ -72,7 +74,7 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   # Parameter list:
   par <- list( n= nrow(data), p = ncol(data), lambda = lambda, tol = tol, max_iter = max_iter, 
                max_cycles = max_cycles, use_Rfast = use_Rfast, pretrain_tol = pretrain_tol,
-               print = TRUE)
+               print = TRUE, greedy = greedy)
   # Initialize:
   intercepts <- colMeans(data)
   x <- scale( data, scale = FALSE)
@@ -133,7 +135,7 @@ SQL_q1 <- function(Sigma, P, d, par ){
   splines <- get_splines( d = d + 1 )
   basis <- get_basis(splines, grid, center = TRUE )
   M <- get_projection_matrix( basis$psi, basis$Omega, par$lambda )
-  opt <- qap_solve(Sigma, M, P[[1]], par$p, par$tol, par$max_iter, par$print )
+  opt <- qap_solve(Sigma, M, P[[1]], par$p, par$tol, par$max_iter, par$print, par$greedy )
   opt$P <- list( opt$P )
   return(opt)
 }
@@ -164,7 +166,7 @@ backfitting_cycles <- function(x, G, P, d, par ){
   for(l in 1:q ){
     U <- as.matrix( x - Reduce( '+', lapply( (1:q)[-l], function(k) P[[k]] %*% G[[k]] ) ) )
     Sigma <- crossprod2(U, par$use_Rfast)
-    qap <- qap_solve(Sigma, M, P[[l]], par$p, par$tol, par$max_iter, par$print )
+    qap <- qap_solve(Sigma, M, P[[l]], par$p, par$tol, par$max_iter, par$print, par$greedy )
     P[[l]] <- qap$P
   }
   return(P)
@@ -175,11 +177,11 @@ backfitting_cycles <- function(x, G, P, d, par ){
 # Low level:
 #==============
 
-qap_solve <- function( Sigma, M, P, p, tol = 1e-4, max_iter = 50, print = TRUE ){
+qap_solve <- function( Sigma, M, P, p, tol = 1e-4, max_iter = 50, print = TRUE, greedy = FALSE){
   mse <- list()
   convergence <- FALSE
   for( it in 1:max_iter ){
-    P <- hungarian_update(Sigma, M, P)
+    P <- hungarian_update(Sigma, M, P, greedy)
     mse[[it]] <- get_mse_1( Sigma, M, P, p )
     if(it > 1){
       convergence <- ( abs( mse[[it]] - mse[[it-1]] ) / mse[[it-1]] ) < tol
@@ -216,12 +218,12 @@ get_mse_1 <- function( Sigma, M, Pmat, p){
   return( mean(diag(out) )/ p )
 }
 
-hungarian_update <- function( Sigma, M, Pmat ){
+hungarian_update <- function( Sigma, M, Pmat, greedy ){
   PM <- as.matrix(Pmat %*% t(M))
   G2 <- t(PM) %*% Sigma %*% PM
   cost <- - 2 * Sigma %*% PM
   cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
-  ord <- solve_LSAP2(cost)
+  ord <- solve_LSAP2(cost, greedy)
   return( Matrix::t(get_permutationMatrix( ord ) ) )
 }
 
