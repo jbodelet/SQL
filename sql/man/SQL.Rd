@@ -32,7 +32,7 @@ SQL(
 
 \item{max_cycles}{Maximum number for the cycles for the backfitting algorithm.}
 
-\item{use_Rfast}{If TRUE, use package Rfast to compute the cross-product of the data matrix. This option may lead to speed gains if the number of variables is large.}
+\item{use_Rfast}{If TRUE, use package Rfast to compute the cross-product of the data matrix. This option may lead to speed gains if the number of variables is large. To use it, make sure that Rfast is installed.}
 
 \item{pretrain_tol}{Tolerance for pretraining.}
 

@@ -10,7 +10,7 @@
 #' @param tol Tolerance for the qap optimization problem.
 #' @param max_iter  Maximum number of iterations for the qap algorithm.
 #' @param max_cycles  Maximum number for the cycles for the backfitting algorithm.
-#' @param use_Rfast If TRUE, use package Rfast to compute the cross-product of the data matrix. This option may lead to speed gains if the number of variables is large.
+#' @param use_Rfast If TRUE, use package Rfast to compute the cross-product of the data matrix. This option may lead to speed gains if the number of variables is large. To use it, make sure that Rfast is installed.
 #' @param pretrain_tol Tolerance for pretraining.
 #' @param Sigma Cross-product of the centered data.
 #' @returns 
@@ -25,7 +25,6 @@
 #' \item \code{intercepts} parameter vector of intercepts of length p.
 #' \item \code{EV} Explained variance.
 #' }
-#' @import Rfast
 #' @export 
 #' @import matrixcalc
 #' @import Matrix
@@ -57,6 +56,12 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   stopifnot(is_positive_integer(max_cycles))
   stopifnot(is.logical( use_Rfast ) )
   stopifnot(pretrain_tol>=0)
+  if(use_Rfast){
+    if (!requireNamespace("Rfast", quietly = TRUE)) {
+      warning("The Rfast package must be installed. Ignoring use_Rfast argument.")
+      use_Rfast <- FALSE
+    }
+  }
   if(!is.null(Sigma)){
     stopifnot("Sigma should be a diagonal positive definite matrix" = is.positive.definite(Sigma) )
     stopifnot(nrow(Sigma) == nrow(data) )
@@ -245,10 +250,6 @@ pred_G <- function (x, P, d, lambda ){
   G <- lapply(1:q, function(l) basis$psi %*% B[(l - 1) * d + 1:d, ])
   return(G)
 }
-
-
-
-
 
 
 get_projection_matrix <- function( psi, Omega, lambda ){
