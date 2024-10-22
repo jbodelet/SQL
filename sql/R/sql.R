@@ -100,9 +100,6 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
 
 
 
-
-
-
 #===================
 # High level:
 #===================
