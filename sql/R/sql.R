@@ -132,7 +132,7 @@ SQL_q1 <- function(Sigma, P, d, par ){
   splines <- get_splines( d = d + 1 )
   basis <- get_basis(splines, grid, center = TRUE )
   M <- get_projection_matrix( basis$psi, basis$Omega, par$lambda )
-  opt <- qap_solve(Sigma, M, P[[1]], par$p, par$tol, par$max_iter, par$print, par$greedy )
+  opt <- qap_solve(Sigma, M, P[[1]], par$p, par$tol, par$max_iter, par$print, par$greedy, par$use_Rfast )
   opt$P <- list( opt$P )
   return(opt)
 }
@@ -163,7 +163,7 @@ backfitting_cycles <- function(x, G, P, d, par ){
   for(l in 1:q ){
     U <- as.matrix( x - Reduce( '+', lapply( (1:q)[-l], function(k) P[[k]] %*% G[[k]] ) ) )
     Sigma <- crossprod2(U, par$use_Rfast)
-    qap <- qap_solve(Sigma, M, P[[l]], par$p, par$tol, par$max_iter, par$print, par$greedy )
+    qap <- qap_solve(Sigma, M, P[[l]], par$p, par$tol, par$max_iter, par$print, par$greedy, par$use_Rfast )
     P[[l]] <- qap$P
   }
   return(P)
@@ -174,12 +174,13 @@ backfitting_cycles <- function(x, G, P, d, par ){
 # Low level:
 #==============
 
-qap_solve <- function( Sigma, M, P, p, tol = 1e-4, max_iter = 50, print = TRUE, greedy = FALSE){
+qap_solve <- function( Sigma, M, P, p, tol = 1e-4, max_iter = 50, print = TRUE, greedy = FALSE, use_Rfast = FALSE){
   mse <- list()
   convergence <- FALSE
   for( it in 1:max_iter ){
-    P <- hungarian_update(Sigma, M, P, greedy)
-    mse[[it]] <- get_mse_1( Sigma, M, P, p )
+    res <- hungarian_update(Sigma, M, P, greedy, p, use_Rfast)
+    P <- res$P
+    mse[[it]] <- res$mse
     if(it > 1){
       convergence <- ( abs( mse[[it]] - mse[[it-1]] ) / mse[[it-1]] ) < tol
       if( convergence ) break
@@ -215,13 +216,27 @@ get_mse_1 <- function( Sigma, M, Pmat, p){
   return( mean(diag(out) )/ p )
 }
 
-hungarian_update <- function( Sigma, M, Pmat, greedy ){
+# get_mse_1( Sigma, M, P, p )
+
+hungarian_update <- function( Sigma, M, Pmat, greedy, p, use_Rfast = FALSE){
   PM <- as.matrix(Pmat %*% t(M))
-  G2 <- t(PM) %*% Sigma %*% PM
-  cost <- - 2 * Sigma %*% PM
+  if(use_Rfast){
+    Sigma_PM <- Rfast::mat.mult( Sigma, PM )
+    G2 <- Rfast::Crossprod( PM, Sigma_PM )
+  }else{
+    Sigma_PM <- Sigma %*% PM    
+    G2 <- t(PM) %*% Sigma_PM  
+  }
+  # Compute permutation matrix:
+  cost <- - 2 * Sigma_PM
   cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
   ord <- solve_LSAP2(cost, greedy)
-  return( Matrix::t(get_permutationMatrix( ord ) ) )
+  P <- Matrix::t(get_permutationMatrix( ord ) )
+  # Compute mse:
+  # cor <- Sigma + G2 - 2 * as.matrix( Pmat ) %*% t(Sigma_PM)
+  # mse <- mean(diag(cor) )/ p
+  mse <- mean( diag(cost[,ord] ) )/p
+  return( list(P = P, mse = mse ) )
 }
 
 solve_LSAP2 <- function(cost, greedy = FALSE){
