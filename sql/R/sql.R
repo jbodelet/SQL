@@ -47,6 +47,7 @@
 SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, max_cycles = 20, use_Rfast = FALSE, 
                  pretrain_tol = 5e-4, Sigma = NULL, greedy = FALSE){
   # Check args:
+  call <- match.call()
   is_positive_integer <- function(x) (x == as.integer(x)) & (x > 0)
   stopifnot("data should be a matrix" = is.matrix(data) & ncol(data) > 1 & nrow(data) > 1)
   stopifnot("q should be a positive integer" = is_positive_integer(q) )
@@ -71,12 +72,13 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   }
   if( ncol(data) < 4 ) warning("number of columns might be too small")
   if( ncol(data) < q * d ) warning("for identifiability q times d shoul be less than number of columns.")
+  if( any(is.na(data)) ) warning("Data contain NA values.")
   # Parameter list:
   par <- list( n= nrow(data), p = ncol(data), lambda = lambda, tol = tol, max_iter = max_iter, 
                max_cycles = max_cycles, use_Rfast = use_Rfast, pretrain_tol = pretrain_tol,
                print = TRUE, greedy = greedy)
   # Initialize:
-  intercepts <- colMeans(data)
+  intercepts <- colMeans(data, na.rm = TRUE)
   x <- scale( data, scale = FALSE)
   P <- get_initial_P(x, q )
   if(q == 1 & is.null(Sigma)) Sigma <- crossprod2(x, par$use_Rfast)
@@ -88,7 +90,7 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   opt <- SQL_solve(x, P, d, Sigma, par)
   # Output:
   mse <- tail( opt$mse, 1 )
-  EV <- 1 - mse / mean(x^2)
+  EV <- 1 - mse / mean(x^2, na.rm = TRUE )
   grid <- 1:nrow(x) / (nrow(x)+1)
   factor <- sapply( opt$P, function(x) qnorm( as.matrix(x %*% grid) ) )
   colnames(factor) <- paste0("Z", 1:q)
@@ -97,6 +99,8 @@ SQL <- function( data, q = 1, d = 4, lambda = 0.1, tol = 1e-4, max_iter = 30, ma
   class(output) <- "sql"
   return(output)
 }
+
+
 
 
 
@@ -192,7 +196,11 @@ qap_solve <- function( Sigma, M, P, p, tol = 1e-4, max_iter = 50, print = TRUE, 
 }
 
 
+
+
+
 crossprod2 <- function(x, use_Rfast ){
+  x[is.na(x)] <- 0  # REMOVING NAs. maybe I should adjust each columns for the number of 0's 
   if( use_Rfast ){
     return( Rfast::Tcrossprod(x, x) )
   }else{
@@ -205,7 +213,7 @@ get_mse <- function (x, G, P){
   # P is a list of matrices
   q <- length(P)
   xpred <- as.matrix( Reduce("+", lapply(1:q, function(l) P[[l]] %*% G[[l]]) ) )
-  mean( ( x - xpred )^2 )
+  mean( ( x - xpred )^2, na.rm = TRUE )
 }
 
 get_mse_1 <- function( Sigma, M, Pmat, p){
@@ -260,6 +268,7 @@ get_Beta <- function(x, P, lambda, d){
     print("Matrix is singular!!")
     Gram_matrix <- Gram_matrix + (lambda/2) * diag(q*d)
   }
+  x[ is.na(x) ] <- 0 # REMOVING NAs. maybe I should adjust each columns for the number of 0's 
   return( solve(Gram_matrix, t(psimat)) %*% x )
 }
 
@@ -283,11 +292,13 @@ get_projection_matrix <- function( psi, Omega, lambda ){
 
 get_initial_P <- function( x, q ){
   uniformize <- function( x ){ rank( x, ties.method = "random" ) / ( length(x) + 1 ) }
-  pca <- irlba::prcomp_irlba( x, n = q, scale = F, center = F )
+  is_na <- !complete.cases(t(x)) # Removing genes that contain NA values
+  pca <- irlba::prcomp_irlba( x[, !is_na], n = q, scale = F, center = F )
   factor <- apply( as.matrix( pca$x[, 1:q]), 2, uniformize ) 
   ord <- apply( factor, 2, order )
   P <- apply( ord, 2, get_permutationMatrix )
 }
+
 
 
 get_permutationMatrix <- function( ord ) Matrix::t( Matrix::sparseMatrix( seq_along( ord ), ord, x = 1 ) )
@@ -388,3 +399,13 @@ predict.sql <- function( object, new_data, type = c("terms", "response"), scalin
     return(out)
   }
 }
+
+
+
+
+
+
+
+
+
+
