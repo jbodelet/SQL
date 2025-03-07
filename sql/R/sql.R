@@ -264,7 +264,7 @@ get_cost <- function(Sigma, basis, Pmat){
   G2 <- basis$psi %*% (basis$Proj %*% crossprod( Pmat, Sigma_PM ) ) # parenthis speed up the computations
 
   cost <- - 2 * Sigma_PM
-  cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
+  cost <- as.matrix( t( t( cost + diag(Sigma) ) + diag(G2) ) )
 }
 
 
