@@ -134,9 +134,9 @@ pretrain <- function(x, P, d, Sigma, par){
 SQL_q1 <- function(Sigma, P, d, par ){
   grid <- 1:par$n / (par$n+1)
   splines <- get_splines( d = d + 1 )
-  basis <- get_basis(splines, grid, center = TRUE )
-  M <- get_projection_matrix( basis$psi, basis$Omega, par$lambda )
-  opt <- qap_solve(Sigma, M, P[[1]], par$p, par$tol, par$max_iter, par$print, par$greedy, par$use_Rfast )
+  basis <- get_basis(splines, grid, center = TRUE, par$lambda  )
+  # M <- get_projection_matrix( basis$psi, basis$Omega, par$lambda )
+  opt <- qap_solve(Sigma, basis, P[[1]], par$p, par$tol, par$max_iter, par$print, par$greedy, par$use_Rfast )
   opt$P <- list( opt$P )
   return(opt)
 }
@@ -162,12 +162,12 @@ backfitting_cycles <- function(x, G, P, d, par ){
   q <- length(P)
   grid <- 1:par$n / (par$n+1)
   splines <- get_splines( d = d + 1 )
-  basis <- get_basis(splines, grid, center = TRUE )
-  M <- get_projection_matrix( basis$psi, basis$Omega, par$lambda )
+  basis <- get_basis(splines, grid, center = TRUE, par$lambda  )
+  # M <- get_projection_matrix( basis$psi, basis$Omega, par$lambda )
   for(l in 1:q ){
     U <- as.matrix( x - Reduce( '+', lapply( (1:q)[-l], function(k) P[[k]] %*% G[[k]] ) ) )
     Sigma <- crossprod2(U, par$use_Rfast)
-    qap <- qap_solve(Sigma, M, P[[l]], par$p, par$tol, par$max_iter, par$print, par$greedy, par$use_Rfast )
+    qap <- qap_solve(Sigma, basis, P[[l]], par$p, par$tol, par$max_iter, par$print, par$greedy, par$use_Rfast )
     P[[l]] <- qap$P
   }
   return(P)
@@ -178,11 +178,12 @@ backfitting_cycles <- function(x, G, P, d, par ){
 # Low level:
 #==============
 
-qap_solve <- function( Sigma, M, P, p, tol = 1e-4, max_iter = 50, print = TRUE, greedy = FALSE, use_Rfast = FALSE){
+qap_solve <- function( Sigma, basis, P, p, tol = 1e-4, max_iter = 50, print = TRUE, greedy = FALSE, use_Rfast = FALSE ){
   mse <- list()
   convergence <- FALSE
   for( it in 1:max_iter ){
-    res <- hungarian_update(Sigma, M, P, greedy, p, use_Rfast)
+    # res <- hungarian_update(Sigma, M, P, greedy, p, use_Rfast)
+    res <- hungarian_update(Sigma, basis, P, greedy, p, use_Rfast)
     P <- res$P
     mse[[it]] <- res$mse
     if(it > 1){
@@ -216,36 +217,58 @@ get_mse <- function (x, G, P){
   mean( ( x - xpred )^2, na.rm = TRUE )
 }
 
-get_mse_1 <- function( Sigma, M, Pmat, p){
-  # Pmat should be a matrix
-  PM <- as.matrix( Pmat %*% t(M) )
-  G2 <- t(PM) %*% Sigma %*% PM
-  out <- Sigma + G2 - 2 * as.matrix( Pmat ) %*% t(PM) %*% Sigma
-  return( mean(diag(out) )/ p )
-}
+# get_mse_1 <- function( Sigma, M, Pmat, p){
+#   # Pmat should be a matrix
+#   PM <- as.matrix( Pmat %*% t(M) )
+#   G2 <- t(PM) %*% Sigma %*% PM
+#   out <- Sigma + G2 - 2 * as.matrix( Pmat ) %*% t(PM) %*% Sigma
+#   return( mean(diag(out) )/ p )
+# }
 
 # get_mse_1( Sigma, M, P, p )
 
-hungarian_update <- function( Sigma, M, Pmat, greedy, p, use_Rfast = FALSE){
-  PM <- as.matrix(Pmat %*% t(M))
-  if(use_Rfast){
-    Sigma_PM <- Rfast::mat.mult( Sigma, PM )
-    G2 <- Rfast::Crossprod( PM, Sigma_PM )
-  }else{
-    Sigma_PM <- Sigma %*% PM    
-    G2 <- t(PM) %*% Sigma_PM  
-  }
-  # Compute permutation matrix:
-  cost <- - 2 * Sigma_PM
-  cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
+# hungarian_update <- function( Sigma, M, Pmat, greedy, p, use_Rfast = FALSE){
+#   PM <- as.matrix(Pmat %*% t(M))
+#   if(use_Rfast){
+#     Sigma_PM <- Rfast::mat.mult( Sigma, PM )
+#     G2 <- Rfast::Crossprod( PM, Sigma_PM )
+#   }else{
+#     Sigma_PM <- Sigma %*% PM    
+#     G2 <- t(PM) %*% Sigma_PM  
+#   }
+#   # Compute permutation matrix:
+#   cost <- - 2 * Sigma_PM
+#   cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
+#   ord <- solve_LSAP2(cost, greedy)
+#   P <- Matrix::t(get_permutationMatrix( ord ) )
+#   # Compute mse:
+#   # cor <- Sigma + G2 - 2 * as.matrix( Pmat ) %*% t(Sigma_PM)
+#   # mse <- mean(diag(cor) )/ p
+#   mse <- mean( diag(cost[,ord] ) )/p
+#   return( list(P = P, mse = mse ) )
+# }
+
+
+hungarian_update <- function( Sigma, basis, Pmat, greedy, p, use_Rfast = FALSE ){
+  cost <- get_cost(Sigma, basis, Pmat ) 
   ord <- solve_LSAP2(cost, greedy)
   P <- Matrix::t(get_permutationMatrix( ord ) )
   # Compute mse:
-  # cor <- Sigma + G2 - 2 * as.matrix( Pmat ) %*% t(Sigma_PM)
-  # mse <- mean(diag(cor) )/ p
   mse <- mean( diag(cost[,ord] ) )/p
   return( list(P = P, mse = mse ) )
 }
+
+get_cost <- function(Sigma, basis, Pmat){
+  Sigma_P <- Sigma %*% Pmat
+  Sigma_PM <- Sigma_P %*% basis$psi %*% basis$Proj
+  G2 <- basis$psi %*% (basis$Proj %*% crossprod( Pmat, Sigma_PM ) ) # parenthis speed up the computations
+
+  cost <- - 2 * Sigma_PM
+  cost <- t( t( cost + diag(Sigma) ) + diag(G2) )
+}
+
+
+
 
 solve_LSAP2 <- function(cost, greedy = FALSE){
   if(greedy){
@@ -259,7 +282,7 @@ solve_LSAP2 <- function(cost, greedy = FALSE){
 get_Beta <- function(x, P, lambda, d){
   q <- length(P)
   grid <- 1:nrow(x) / (nrow(x)+1)
-  basis <- get_basis( get_splines(d+1), grid, center = TRUE )
+  basis <- get_basis( get_splines(d+1), grid, center = TRUE, lambda  )
   Omega_tot <- as.matrix( do.call(Matrix::bdiag, replicate(q, basis$Omega, simplify = F ) ) )
   psimat <- as.matrix( do.call(cbind, lapply(P, function(A) A %*% basis$psi ) ) )
   Gram_matrix <- t(psimat) %*% psimat + lambda * Omega_tot
@@ -277,7 +300,7 @@ pred_G <- function (x, P, d, lambda ){
   # uniform scale
   q <- length(P)
   grid <- 1:nrow(x) / (nrow(x)+1)
-  basis <- get_basis(get_splines(d+1), grid, center = TRUE )
+  basis <- get_basis(get_splines(d+1), grid, center = TRUE, lambda  )
   B <- get_Beta(x, P, lambda, d)
   G <- lapply(1:q, function(l) basis$psi %*% B[(l - 1) * d + 1:d, ])
   return(G)
@@ -313,7 +336,7 @@ get_splines <- function( d, range = c(0,1), degree = 3 ){
   return( list( basis = basis, d_basis = d_basis, d2psi = d2psi ) )
 }
 
-get_basis <- function(splines, grid, center = TRUE ){
+get_basis <- function(splines, grid, center = TRUE, lambda = 0.01 ){
   # when centered splines are used, we remove the last basis to ensure linear independence
   psi <- orthogonalsplinebasis::evaluate( splines$basis, grid )
   if(center){
@@ -322,7 +345,9 @@ get_basis <- function(splines, grid, center = TRUE ){
   }
   d <- ncol(psi)
   Omega <- splines$d2psi[1:d, 1:d]
-  return(list(psi = psi, Omega = Omega) )
+  Gram_matrix <- t( psi ) %*% psi + lambda * Omega
+  Proj <- solve( Gram_matrix, t( psi ) )
+  return(list(psi = psi, Omega = Omega, Gram_matrix = Gram_matrix, Proj = Proj ) )
 }
 
 
